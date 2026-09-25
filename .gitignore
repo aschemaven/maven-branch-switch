@@ -1,0 +1,9 @@
+# Rendered output (generated from .adoc at publish time)
+*.html
+*.storage.xml
+build/
+target/
+.DS_Store
+.idea/
+.envrc
+.direnv/

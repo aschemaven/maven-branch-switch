@@ -1,0 +1,17 @@
+# Publishes the rendered README into Gerd's ASF test space first (Verprobung).
+# The real target (MAVEN space, public page) is a separate, coordinated step.
+confluence:
+  api: https://cwiki.apache.org/confluence
+  spaceKey: MAVEN
+
+  # 0 = one page; 1 = one page per top-level section; 2 = also per sub-section.
+  # 0 keeps the plan on a single page: one URL to hand out, and it updates in
+  # place by title on republish (no per-section title collisions like "Motivation").
+  subpagesForSections: 0
+
+  input:
+    - file: docs/branch-switch.html
+      # ancestorId: '<parent-page-id>'   # optional: land under a specific page
+
+# Credentials come from the environment:
+#   CONFLUENCE_BEARER_TOKEN=$CONFLUENCE_PERSONAL_TOKEN   (cwiki DC = PAT/bearer)

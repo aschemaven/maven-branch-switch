@@ -1,0 +1,40 @@
+= maven-branch-switch
+:toc: left
+:icons: font
+
+Working repo for the Git branch-role reorganization of the Maven 4-specific
+plugins and components, tracked in
+https://github.com/apache/maven-sources/issues/57[maven-sources#57].
+
+The substance -- plan, runbook, method, communication -- lives in
+xref:docs/branch-switch.adoc[docs/branch-switch.adoc].
+That document is the source for the Confluence page where the plan is reviewed
+and edited in the open.
+
+== Layout
+
+`docs/branch-switch.adoc`:: the plan and per-repository runbook (Confluence source).
+`.dtc-confluence.yaml`:: publish config for the Confluence trial (space `GERDASCHEMANNTEST`).
+
+== Publishing
+
+The document is published to Confluence with
+https://github.com/docToolchain/dtc-confluence[dtc-confluence].
+Render `docs/branch-switch.adoc` to HTML, then run the publish per
+`.dtc-confluence.yaml`.
+Credentials come from the environment (`CONFLUENCE_BEARER_TOKEN`).
+
+NOTE: The initial target is the test space `GERDASCHEMANNTEST`; the public page
+in the Maven space is a separate, coordinated step.
+
+=== Published page
+
+Reviewed page (Maven space):: https://cwiki.apache.org/confluence/spaces/MAVEN/pages/451975155/Maven+plugins+default+branch+back+to+Maven+3+maven-sources+57 (short: https://cwiki.apache.org/confluence/x/85fwGg)
+
+The published page carries a back-reference to this repository as its source, so
+the two stay linked in both directions.
+
+== Status
+
+Draft -- nothing executed on any Apache repository yet.
+Feedback is gathered (dev@ / Hervé) before execution.

@@ -1,0 +1,231 @@
+= Maven plugins: default branch back to Maven 3 (maven-sources#57)
+:toc: left
+:icons: font
+:source-highlighter: rouge
+
+Plan and runbook for the Git branch-role reorganization tracked in https://github.com/apache/maven-sources/issues/57[maven-sources#57].
+
+[IMPORTANT]
+====
+Draft, agent-assisted, *nothing executed yet*.
+This document is published to Confluence so it can be reviewed and edited in the open.
+We explicitly gather feedback before touching any repository.
+====
+
+Status:: draft -- awaiting dev@ / Hervé feedback
+Lead:: Gerd Aschemann (assigned on maven-sources#57, 2026-09-25)
+Tracking:: https://github.com/apache/maven-sources/issues/57
+Source:: this page is generated from `docs/branch-switch.adoc` in https://github.com/aschemaven/maven-branch-switch[aschemaven/maven-branch-switch]; propose changes there (PR) or comment on this page
+
+== Motivation
+
+A few Maven 4-specific plugins and components currently carry their Maven 4 code on the default `master` branch, with a `<repo>-3.x` branch for Maven 3.
+That is the reverse of the agreed strategy: *default is Maven 3*, and Maven 4 is a separate branch until user migration to Maven 4.0 has made good progress.
+
+The goal is to make the Git layout match that intent, so that a casual clone of any of these repos lands on the Maven 3 line, and the Maven 4 work is clearly marked as the exception.
+
+Hervé Boutemy filed the tracking issue on 2026-09-20 and asked on Slack (#maven) for someone to lead the actual Git work, including branch-protection updates and README links.
+
+== Scope
+
+Per repository, swap the two branch roles:
+
+. the current `master` (Maven 4 code) becomes `<repo>-4.x`
+. `<repo>-3.x` (Maven 3 code) becomes `master`
+. the default branch and branch protection point at the new `master`
+. `README.md` links, `maven-sources/default.xml`, milestones and release-drafter follow
+
+.Repositories in scope (8)
+[cols="1,3",options="header"]
+|===
+|Group |Repository
+
+|core plugins (5)
+|maven-clean-plugin, maven-compiler-plugin, maven-deploy-plugin, maven-install-plugin, maven-resources-plugin
+
+|packaging plugins (2)
+|maven-jar-plugin, maven-source-plugin
+
+|shared components (2)
+|maven-archiver, maven-filtering
+|===
+
+=== Special case: maven-plugin-tools
+
+Plugin Tools is *not* a Maven 4 plugin.
+It is a Maven 3 plugin that can additionally emit a Maven 4 plugin descriptor, so there is no genuine Maven 4 branch to keep (Hervé's deep-dive, 2026-09-20).
+
+[NOTE]
+====
+The parallel `4.x` branch is a misconception here.
+Instead of a branch swap: drop the `maven-plugin-tools-3.x` branch, keep the current `master`, and rename its version line from `4.0.0-beta-4-SNAPSHOT` to `3.17.0-SNAPSHOT`.
+Improve the documentation so this is clear without reading the code.
+This is a separate, smaller task from the 8-repo swap.
+====
+
+== The real constraint: open pull requests
+
+Every open PR against `master` today targets the *Maven 4* code and must travel with it to the new `<repo>-4.x` branch.
+Snapshot taken 2026-09-25:
+
+.Open PRs against `master` per repo (2026-09-25)
+[cols="2,1",options="header"]
+|===
+|Repository |Open PRs vs master
+
+|maven-resources-plugin |10
+|maven-filtering |9
+|maven-compiler-plugin |8
+|maven-jar-plugin |5
+|maven-source-plugin |4
+|maven-clean-plugin |4
+|maven-archiver |3
+|maven-deploy-plugin |1
+|maven-install-plugin |1
+|*total* |*~45*
+|===
+
+This is what decides the method (see below): roughly 45 PRs must keep their base.
+
+== Method: rename, not force-push
+
+*Decision (Gerd, 2026-09-25): rename in every case, never force-push.*
+
+Rename (preferred):: GitHub's branch rename automatically retargets open PRs whose base was the renamed branch, and updates references.
+Renaming `master` -> `<repo>-4.x` carries all ~45 open PRs with the Maven 4 code to `<repo>-4.x` -- which is exactly correct, since they *are* Maven 4 work.
+No PR loses its merge base.
+
+Force-push (rejected):: the team precedent for maven-site-plugin (Hervé, Slack 2026-04-03: saved `master-20260403`, then force-pushed `-3.x` onto `master`) tears every open PR off its merge base and turns it into a conflict.
+Only defensible with a manual PR-retarget beforehand, and still worse than a rename.
+We do not use it.
+
+== Who executes the protected-`master` part (open coordination question)
+
+Creating the new `<repo>-4.x` branch and editing `.asf.yaml` / `README.md` / `default.xml` are within committer rights.
+The parts that touch the *protected default branch* -- renaming `master` itself and pointing the default at the new one -- may need more than committer write.
+Three options, to be settled with Hervé / INFRA:
+
+. *`.asf.yaml` alone.*
+  Default branch and branch protection are configured per repo in `.asf.yaml` (`github.default_branch`, `github.protected_branches`).
+  Per the earlier note from Hervé, PMC status grants no extra power here and `.asf.yaml` is likely sufficient; an INFRA ticket is only needed for the protected-`master` rename if that is blocked.
+. *Temporary admin on the affected repos* (Gerd's option, 2026-09-25).
+  INFRA grants Gerd admin on the 8 repos for the duration of the migration, so the renames and default-branch switch can be done directly, then admin is dropped again.
+. *INFRA performs the rename.*
+  For the protected-`master` rename specifically, an INFRA self-serve request or ticket does the git plumbing while we handle everything else.
+
+[source,yaml]
+.`.asf.yaml` target state (per repo)
+----
+github:
+  default_branch: master
+  protected_branches:
+    master:
+      required_status_checks:
+        strict: true
+        contexts:
+          - "build"
+      required_pull_request_reviews:
+        required_approving_review_count: 1
+    <repo>-4.x: { }
+----
+
+[WARNING]
+====
+Do not get the `contexts`/checks wrong on the default branch.
+A wrong required check on `master` can lock everyone out -- including out of editing `.asf.yaml` itself.
+Test any protection change on a non-default (scratch) branch first.
+====
+
+== Per-repository runbook (draft)
+
+For each of the 8 repos, in order:
+
+. confirm `<repo>-3.x` is the intended Maven 3 content and is green
+. create `<repo>-4.x` from the current `master` (Maven 4 code)
+. rename `master` -> `<repo>-4.x`  (retargets the open Maven 4 PRs automatically)
+. rename `<repo>-3.x` -> `master`
+. set `github.default_branch: master` and the `protected_branches` block in `.asf.yaml`
+. verify: the ~N open PRs now target `<repo>-4.x`; a fresh clone lands on the Maven 3 line
+. update `README.md` badge / branch links
+. update `maven-sources/default.xml` (see below)
+. update milestones (branch name in description) and release-drafter config
+. announce on the repo / dev@ list
+
+=== `maven-sources/default.xml`
+
+The manifest currently pins the roles inversely and must be inverted with the swap.
+Example for the core plugins (same shape for packaging + shared):
+
+[source,xml]
+.before
+----
+<project path='plugins/core/maven-clean-plugin'   name='maven-clean-plugin.git' revision="maven-clean-plugin-3.x" />
+<project path='plugins/core-4/maven-clean-plugin' name='maven-clean-plugin.git' />
+----
+
+[source,xml]
+.after
+----
+<project path='plugins/core/maven-clean-plugin'   name='maven-clean-plugin.git' />
+<project path='plugins/core-4/maven-clean-plugin' name='maven-clean-plugin.git' revision="maven-clean-plugin-4.x" />
+----
+
+The `core/` (Maven 3) row drops its `revision=` and follows the new default `master`; the `core-4/` (Maven 4) row pins the new `<repo>-4.x` branch.
+This is also the file that breaks `repo sync` when a referenced branch disappears, so it must land together with the rename.
+
+== Communication
+
+The migration changes visible behavior (a fresh clone lands on a different line; `master` moves), so it must be accompanied by communication, not just executed.
+
+Principles:
+
+* every outward step references *this Confluence page* as the single source of truth
+* announce behavior changes as *advance notice*, before they happen -- especially the `master` switch, so nobody is surprised mid-work
+* keep it low-noise: occasional, milestone-driven posts, not a running commentary
+
+.Communication touchpoints
+[cols="1,2,2",options="header"]
+|===
+|When |Channel |Content
+
+|plan published
+|dev@ + Slack #maven
+|"here is the plan for maven-sources#57, please review" + Confluence link
+
+|feedback settled
+|dev@
+|agreed approach, pilot repo, timeline
+
+|before the `master` switch (per repo or per batch)
+|dev@ + Slack #maven
+|advance notice: which repos, when, what changes for contributors (rebase PRs onto `<repo>-4.x`, new default is Maven 3)
+
+|after the switch
+|dev@ + repo announce
+|done, what moved where, how to update local clones / `repo sync`
+|===
+
+Every dev@ mail and Slack post is drafted, shown to Gerd, and sent by him -- no autonomous outward posts.
+
+== Approach
+
+. document the plan here as AsciiDoc (this repo)
+. publish to Confluence as a new page for open review (initial trial via `dtc-confluence`)
+. gather explicit feedback (Hervé / dev@)
+. only then execute -- one pilot repo first (a low-PR one such as maven-deploy-plugin or maven-install-plugin), derive a verified runbook, then batch the remaining seven
+. handle maven-plugin-tools separately
+
+== Open options (decide later)
+
+Public repo with PR workflow:: if we end up writing non-trivial automation (create `<repo>-4.x`, edit `default.xml`, verify PR retargeting, a per-repo checklist runner), a public repo where those *scripts* are reviewed via PRs becomes worthwhile.
+For prose alone it is not -- Confluence stays the canonical, openly editable source, and a second source of truth would only drift.
+Revisit once real scripts materialize (likely at the pilot repo).
+
+== References
+
+* Tracking issue: https://github.com/apache/maven-sources/issues/57
+* maven-site-plugin precedent (Slack #maven, 2026-04-03): saved `master-20260403`, force-pushed `-3.x` onto `master`
+* `.asf.yaml` reference (schema + README): https://github.com/apache/infrastructure-asfyaml/blob/main/README.md (short link https://s.apache.org/asfyaml)
+* Working with `.asf.yaml`: https://infra.apache.org/asf-yaml.html
+* Git -- `.asf.yaml` features (INFRA/Confluence): https://cwiki.apache.org/confluence/display/INFRA/git+-+.asf.yaml+features
+* Merging upwards (git maintenance model): https://git-scm.com/docs/gitworkflows#_merging_upwards
