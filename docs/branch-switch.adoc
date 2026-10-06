@@ -35,7 +35,7 @@ Per repository, swap the two branch roles:
 . the default branch and branch protection point at the new `master`
 . `README.md` links, `maven-sources/default.xml`, milestones and release-drafter follow
 
-.Repositories in scope (8)
+.Repositories in scope (9)
 [cols="1,3",options="header"]
 |===
 |Group |Repository
@@ -60,8 +60,14 @@ It is a Maven 3 plugin that can additionally emit a Maven 4 plugin descriptor, s
 The parallel `4.x` branch is a misconception here.
 Instead of a branch swap: drop the `maven-plugin-tools-3.x` branch, keep the current `master`, and rename its version line from `4.0.0-beta-4-SNAPSHOT` to `3.17.0-SNAPSHOT`.
 Improve the documentation so this is clear without reading the code.
-This is a separate, smaller task from the 8-repo swap.
+This is a separate, smaller task from the 9-repo swap.
 ====
+
+=== Naming: `master`, not `main`
+
+The target branch name stays `master`, not `main`.
+Martin Desruisseaux proposed renaming to `main` to avoid surprising Maven 4 users (2026-09-25); Hervé Boutemy and Gerd rejected mixing that in here.
+Maven's convention is `master`, and a move to `main`, if it ever happens, should be a separate global migration, not a side effect of this one.
 
 == The real constraint: open pull requests
 
@@ -99,19 +105,38 @@ Force-push (rejected):: the team precedent for maven-site-plugin (Hervé, Slack 
 Only defensible with a manual PR-retarget beforehand, and still worse than a rename.
 We do not use it.
 
+Rename vs. default-branch switch (two different operations):: renaming the current default branch retargets the open PRs; merely pointing the default at a different existing branch does *not* (details and source in <<default-branch-mechanism>>).
+So the order is fixed: rename first (this migrates the PRs), and flip the default pointer back to `master` only as the last step, once both branches exist.
+
+[[default-branch-mechanism]]
+The branch *rename* is what migrates the open PRs; a default-branch *switch* (the ASF Gitbox "boxer" action) only moves the pointer and does *not* retarget PRs.
+So the rename is the PR-migrating step -- it needs repo admin, not PMC/boxer -- and the final default pointer back to `master` is set via `.asf.yaml`.
+For the mechanism, the INFRA/boxer sources and the full reasoning, see the companion page xref:background-rename-vs-default-branch.adoc[Background: branch rename vs. default-branch switch].
+
 == Who executes the protected-`master` part (open coordination question)
 
-Creating the new `<repo>-4.x` branch and editing `.asf.yaml` / `README.md` / `default.xml` are within committer rights.
-The parts that touch the *protected default branch* -- renaming `master` itself and pointing the default at the new one -- may need more than committer write.
-Three options, to be settled with Hervé / INFRA:
+Creating branches and editing `.asf.yaml` / `README.md` / `default.xml` are within committer rights.
+Only two steps touch the *protected default branch*: the *renames* of `master` (the PR-migrating part, needs repo admin) and the final *default pointer* back to `master`.
+The default pointer does *not* require PMC/boxer -- `.asf.yaml` `github.default_branch` covers it -- so the whole swap can sit in one hand.
+The mechanism (why a rename migrates PRs but a default-switch/boxer does not) is in the companion page xref:background-rename-vs-default-branch.adoc[Background].
 
-. *`.asf.yaml` alone.*
-  Default branch and branch protection are configured per repo in `.asf.yaml` (`github.default_branch`, `github.protected_branches`).
-  Per the earlier note from Hervé, PMC status grants no extra power here and `.asf.yaml` is likely sufficient; an INFRA ticket is only needed for the protected-`master` rename if that is blocked.
-. *Temporary admin on the affected repos* (Gerd's option, 2026-09-25).
-  INFRA grants Gerd admin on the 8 repos for the duration of the migration, so the renames and default-branch switch can be done directly, then admin is dropped again.
-. *INFRA performs the rename.*
-  For the protected-`master` rename specifically, an INFRA self-serve request or ticket does the git plumbing while we handle everything else.
+[NOTE]
+====
+*Decided 2026-10-06:* INFRA (Bob Thomson) approved *approach A* -- INFRA performs the renames, no boxer/PMC step -- and is fine to execute from ~16 October (after Community over Code).
+Options B and C below are kept for the record.
+====
+
+Three alternatives, in order of preference:
+
+A. *Preferred -- INFRA performs only the renames.*
+  We (committers) do everything else: branch prep, `.asf.yaml` (incl. `github.default_branch: master`), `README.md`, `default.xml`, communication, verification.
+  INFRA performs just the two protected-`master` renames per repo (`master` -> `<repo>-4.x`, then `<repo>-3.x` -> `master`), which migrate the open PRs (INFRA-28244).
+  No PMC/boxer step.
+B. *Fallback -- temporary admin for Gerd.*
+  INFRA grants Gerd admin on the 9 repos for the migration; Gerd does the renames and sets the default himself; admin is dropped again afterwards.
+  One grant instead of per-repo INFRA turnaround.
+C. *Variant of A with a PMC action.*
+  As A, but the final default pointer back to `master` is flipped by an (I)PMC member via ASF Gitbox "boxer" (its "Change default branch" action is (I)PMC-only), instead of via `.asf.yaml`.
 
 [source,yaml]
 .`.asf.yaml` target state (per repo)
@@ -136,14 +161,41 @@ A wrong required check on `master` can lock everyone out -- including out of edi
 Test any protection change on a non-default (scratch) branch first.
 ====
 
+== Timing: when to swap -- open decision
+
+gnodet is actively working on the Maven 4 (`master`) line of these plugins, plans to release them in the coming weeks, and asked to defer the branch change until *after* the next release -- proposed as swapping each repo once it has been released (2026-09-25).
+
+Two ways to honour "don't disrupt a release":
+
+Staggered (gnodet's proposal):: swap each repo individually, right after its own next release.
+Safest per repo, but spreads the migration over weeks and means ~9 separate INFRA touch-points.
+All-at-once in a release-quiet window (our proposal):: do all 9 in one coordinated session, chosen so that no repo has an open staging vote at that moment.
+Simpler, one INFRA session.
+Open PRs are *not* a reason to stagger -- the rename retargets them automatically (rehearsed).
+Right now is such a quiet window (install/deploy/artifact/shared-* just released).
+
+=== Conference window (Community over Code EU, Glasgow)
+
+Apache Community over Code EU takes place in Glasgow in the week of 2026-10-12, and several Maven maintainers and some INFRA people attend.
+INFRA (Bob Thomson, 2026-10-06) is fine to execute from ~16 October, i.e. after the conference; the only point still to settle is the timing granularity (below).
+
+[IMPORTANT]
+====
+This is an *open decision* -- the *staggered vs all-at-once granularity* -- that needs gnodet's (and Hervé's) call, since the deferral was gnodet's request.
+INFRA approved approach A (2026-10-06); flagged for discussion, settle this before starting.
+
+*Hard precondition, independent of staggered-vs-all-at-once:* the swap (or each individual swap) runs *only outside an open staging/voting window* for the affected repo.
+A rename during a live vote would move the branch a voter is checking out from under them.
+====
+
 == Per-repository runbook (draft)
 
-For each of the 8 repos, in order:
+For each of the 9 repos, in order:
 
 . confirm `<repo>-3.x` is the intended Maven 3 content and is green
-. create `<repo>-4.x` from the current `master` (Maven 4 code)
-. rename `master` -> `<repo>-4.x`  (retargets the open Maven 4 PRs automatically)
+. rename `master` -> `<repo>-4.x` (retargets the open Maven 4 PRs automatically)
 . rename `<repo>-3.x` -> `master`
+. flip the default branch back to `master` (the renames left it on `<repo>-4.x`) -- recorded via `.asf.yaml` `github.default_branch`, or https://gitbox.apache.org/boxer/[ASF Gitbox "boxer"]'s (I)PMC-only "Change default branch" action
 . set `github.default_branch: master` and the `protected_branches` block in `.asf.yaml`
 . verify: the ~N open PRs now target `<repo>-4.x`; a fresh clone lands on the Maven 3 line
 . update `README.md` badge / branch links
@@ -212,7 +264,7 @@ Every dev@ mail and Slack post is drafted, shown to Gerd, and sent by him -- no 
 . document the plan here as AsciiDoc (this repo)
 . publish to Confluence as a new page for open review (initial trial via `dtc-confluence`)
 . gather explicit feedback (Hervé / dev@)
-. only then execute -- one pilot repo first (a low-PR one such as maven-deploy-plugin or maven-install-plugin), derive a verified runbook, then batch the remaining seven
+. only then execute -- one pilot repo first (a low-PR one such as maven-deploy-plugin or maven-install-plugin), derive a verified runbook, then batch the remaining eight
 . handle maven-plugin-tools separately
 
 == Open options (decide later)

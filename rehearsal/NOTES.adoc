@@ -1,0 +1,29 @@
+= Rehearsal notes -- maven-sources#57 branch swap
+
+Rehearsed 2026-10-06 on a throwaway repo `aschemaven/maven-sources-57-rehearsal` (master = "maven 4", `maven-sources-57-rehearsal-3.x` = "maven 3", one dummy PR targeting master).
+
+== Result -- works end to end
+
+* Renaming `master` -> `<repo>-4.x` *auto-retargeted the open PR* (base master -> `<repo>-4.x`), confirming the "rename, not force-push" method preserves PRs.
+* Final state: `master` = Maven 3 line, `<repo>-4.x` = Maven 4 line, default = master.
+
+== Gotchas for the real runbook
+
+. Renaming the *default* branch (`master`) moves `default_branch` to the new name (`<repo>-4.x`), and GitHub briefly still holds a `master` ref -- so an immediate `<repo>-3.x` -> `master` rename can fail with `422 "New branch already exists"`.
+  Fix: delete the stray `master` ref (or wait a moment) then retry; see `branch-swap.sh`.
+. Set `default_branch` back to `master` afterwards (real repos: `.asf.yaml` `github.default_branch`).
+. On apache/* repos the two renames need repo-admin = INFRA (protected master); `.asf.yaml` covers `default_branch` + `protected_branches` only, not the rename itself.
+
+== Real execution is manual (INFRA) -- expect delays between the two renames
+
+The live swap is done by INFRA via manual coordination, so the two renames are not back-to-back.
+Design the runbook accordingly:
+
+* Treat each rename as a *discrete, independently-verified step*, not a script: after step 1 verify the open PRs retargeted to `<repo>-4.x`; after step 2 verify `master` = Maven 3 and `default_branch` = master.
+* The *intermediate state after step 1* (default = `<repo>-4.x`, no `master` yet) is benign: it is effectively the pre-swap default (Maven 4), just renamed -- clones and CI keep working, so a delay here costs nothing.
+* The transient-`master` 422 is an artifact of _back-to-back automation_; with manual turnaround any stray `master` is stable -- just delete it (or confirm it is gone) before step 2.
+* `branch-swap.sh` stays a rehearsal/reference artifact; INFRA runs the renames by hand, one repo at a time, with us verifying between steps.
+
+== Script
+
+`branch-swap.sh <org> <repo>` -- the validated rename sequence.

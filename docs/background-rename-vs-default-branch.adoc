@@ -1,0 +1,36 @@
+= Background: branch rename vs. default-branch switch (and why boxer can't migrate the PRs)
+
+Companion to the xref:branch-switch.adoc[Maven plugins: default branch back to Maven 3 (maven-sources#57)] plan.
+Detail-level background -- not needed to understand the plan itself.
+
+[NOTE]
+====
+This is pieced together from ASF INFRA tickets and the boxer source code.
+It may not be the complete picture; a confirming answer on #asfinfra was pending at the time of writing.
+====
+
+Two GitHub operations are easy to confuse, and only one of them retargets open pull requests:
+
+Branch *rename*:: `POST /repos/{owner}/{repo}/branches/{branch}/rename` (GitHub UI: "Rename branch").
+Retargets open PRs to the renamed branch, updates branch-protection rules, and -- for the default branch -- moves the default pointer with it.
+Requires repo *admin*.
+Default-branch *switch*:: `PATCH /repos/{owner}/{repo}` with `{"default_branch": "<existing-branch>"}`.
+Only moves the pointer to an already-existing branch; it does *not* retarget PRs.
+
+ASF Gitbox "boxer" (https://gitbox.apache.org/boxer/?action=defaultbranch[Change default branch]) implements the *second* one.
+Its source (`apache/infrastructure-boxer`, `server/endpoints/defaultbranch.py`) makes exactly one GitHub call:
+
+[source,python]
+----
+api_patch(f".../repos/{org}/{repo}", {"default_branch": new_default_branch})
+----
+
+plus rewriting the gitbox mirror's `HEAD` file and mailing `private@<pmc>`.
+It is guarded by an explicit *(I)PMC-only* permission check.
+
+Consequences for this migration:
+
+* Boxer cannot migrate the ~45 open PRs: it is a pointer change, not a rename.
+  This matches ASF INFRA's own statement (Bret McGuire, INFRA-28244, 2026-08-12: "changing the default branch to [a new branch] won't update any existing PRs ... renaming the current default branch ... will automatically update everything").
+* The PR-migrating step is therefore the *rename* (`master` -> `<repo>-4.x`, then `<repo>-3.x` -> `master`), which needs *admin* (temporary admin for Gerd, or INFRA).
+* So the whole swap can be done in one hand without PMC/boxer: an admin does the two renames (the first already moves the default to `<repo>-4.x`), and the final default pointer back to `master` is set via `.asf.yaml` `github.default_branch`.
