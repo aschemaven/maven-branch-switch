@@ -207,7 +207,7 @@ For each of the 9 repos, in order:
 . verify: the ~N open PRs now target `<repo>-4.x`; a fresh clone lands on the Maven 3 line; default is `master`
 . post a short heads-up on each retargeted PR, so the automatic base change has context -- templated and scriptable across the ~N PRs (see <<pr-heads-up>>)
 . update milestones (branch name in description) and release-drafter config
-. announce on the repo / dev@ list
+. announce on the repo / dev@ list -- include the fork-owner realignment note (see <<fork-realign>>)
 
 [NOTE]
 ====
@@ -230,6 +230,26 @@ Details: apache/maven-sources#57 / this Confluence page.
 
 Drive it mechanically across the open PRs with `gh pr list --repo apache/<repo> --state open` + `gh pr comment`, once the base has actually moved to `<repo>-4.x`.
 The pilot PR (maven-filtering#363) already got an advance variant of this note.
+
+[[fork-realign]]
+.Fork-owner realignment note (part of the "after the switch" announcement)
+****
+Open PRs are retargeted automatically, and a fork's branches are untouched by the rename -- so most fork owners need to do nothing.
+The one case that wants a one-time step: a fork whose `master` is kept in sync with upstream and carries Maven 4 work.
+After the switch that `master` corresponds to upstream's `<repo>-4.x`, and the new `master` is the Maven 3 line.
+Realigning a local clone is a rename plus a re-track:
+
+[source,bash]
+----
+git fetch upstream
+git branch -m master <repo>-4.x       #<1>
+git branch master upstream/master     #<2>
+----
+<1> the existing Maven 4 work becomes the `<repo>-4.x` branch
+<2> recreate `master` from the new upstream default (Maven 3)
+****
+
+This is the same note that went to dev@ as part of the fork-impact discussion ahead of the switch; the announcement repeats it so nobody has to dig it out.
 
 ==== `maven-sources/default.xml`
 
@@ -282,7 +302,7 @@ Principles:
 
 |after the switch
 |dev@ + repo announce
-|done, what moved where, how to update local clones / `repo sync`
+|done, what moved where, how to update local clones / `repo sync` -- incl. the fork-owner realignment note (see <<fork-realign>>)
 |===
 
 Every dev@ mail and Slack post is drafted, shown to Gerd, and sent by him -- no autonomous outward posts.
