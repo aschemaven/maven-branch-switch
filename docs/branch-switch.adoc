@@ -187,23 +187,45 @@ The `.asf.yaml`, `README.md` and `.github/` changes (branch protection, metadata
 Mark it as held -- title prefix `[HOLD until maven-sources#57 swap]` plus a comment stating when it merges -- following the project's `[NOT FOR MERGE]` convention.
 . *Get it approved* ahead of the switch (target: *2026-10-16*).
 `maven-filtering`'s protection is `{ }` (no required review), so a committer self-approves/merges there; other repos may require a second committer -- check each repo's `.asf.yaml` when templating.
-. *Merge* it immediately around the rename on *2026-10-18* -- it restores the repo's branch protection and metadata on the new `master`.
+. *Merge* it -- *by a committer (Gerd), not INFRA* -- just before the rename on *2026-10-18*; it restores the repo's branch protection and metadata on the new `master`.
 The default itself is set back to `master` by INFRA as part of the renames, not by this PR.
 The `.asf.yaml` change is *inert* until `<repo>-3.x` becomes the default branch, so an early merge is harmless.
 
 `maven-sources/default.xml` is deliberately *not* pre-staged this way: an early merge would break `repo sync` (it would reference a not-yet-existing `<repo>-4.x`), so it is done once for all repos right after the swap (see below).
 
-`.github/` is read from the default branch too, so the pre-staged PR also carries it over (otherwise the swap silently drops it): *repo-wide, default-sourced* pieces -- issue templates, scheduled workflows (e.g. `stale`), the PR template, the release-drafter *workflow* (its branch filter) -- are taken from the current `master`; *line-specific* pieces -- `dependabot`, the release-drafter *config*, the `maven-verify` CI -- stay the Maven 3 line's.
+`.github/` is read from the default branch too, so the pre-staged PR also carries it over (otherwise the swap silently drops it): *repo-wide, default-sourced* pieces -- issue templates, scheduled workflows (e.g. `stale`), the PR template -- are taken from the current `master`; *line-specific* pieces -- `dependabot`, release-drafter (workflow *and* config), the `maven-verify` CI -- stay the Maven 3 line's.
+
+NOTE: `release-drafter` is deliberately left untouched in every pre-staged PR -- whether the Maven 3 line should auto-draft releases (and the master-only `release-drafter-3.x.yml` config) is a separate call for Slawomir Jaranowski, not something to flip silently inside the swap PRs.
+
+==== Pre-staged PRs (raised 2026-10-10)
+
+All nine are open, non-draft, carry the `[HOLD until maven-sources#57 swap]` title prefix, request `hboutemy` as reviewer, and have `maintainer_can_modify=true`; base is each repo's `<repo>-3.x`.
+Target: approvals by *2026-10-16* (Fri); merged by a committer (Gerd) just before the *2026-10-18* rename.
+
+[cols="3,1,3",options="header"]
+|===
+|Repo |PR |Scope
+
+|maven-filtering |#412 |.asf.yaml + .github + README (pilot)
+|maven-clean-plugin |#366 |.asf.yaml + .github + README
+|maven-compiler-plugin |#1169 |.asf.yaml + .github
+|maven-deploy-plugin |#718 |.asf.yaml + .github
+|maven-install-plugin |#467 |.asf.yaml + .github
+|maven-jar-plugin |#622 |.asf.yaml + .github
+|maven-source-plugin |#340 |.asf.yaml + .github
+|maven-archiver |#420 |.asf.yaml + .github + README
+|maven-resources-plugin |#539 |.asf.yaml + .github
+|===
 
 === Swap window (per repo, coordinated with INFRA)
 
 For each of the 9 repos, in order:
 
-. confirm `<repo>-3.x` is the intended Maven 3 content and is green
+. confirm `<repo>-3.x` is the intended Maven 3 content, is green, and its pre-staged PR is approved
+. *(committer -- Gerd, not INFRA)* merge the pre-staged `.asf.yaml` + `.github` + `README` PR into `<repo>-3.x` just before the rename -- so the new `master` carries branch protection, metadata and default-sourced config from the first moment
 . *(INFRA)* rename `master` -> `<repo>-4.x` (retargets the open Maven 4 PRs automatically)
 . *(INFRA)* rename `<repo>-3.x` -> `master`
 . *(INFRA)* set the default branch back to `master` (the renames left it on `<repo>-4.x`)
-. merge the pre-staged `.asf.yaml` + `README.md` PR -- restores the repo's branch protection and metadata on the new `master`
 . verify: the ~N open PRs now target `<repo>-4.x`; a fresh clone lands on the Maven 3 line; default is `master`
 . post a short heads-up on each retargeted PR, so the automatic base change has context -- templated and scriptable across the ~N PRs (see <<pr-heads-up>>)
 . update milestones (branch name in description) and release-drafter config
